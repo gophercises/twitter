@@ -1,18 +1,15 @@
 package main
 
 import (
-	"context"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"os"
-	"strings"
 	"time"
 
-	"golang.org/x/oauth2"
+	"github.com/gophercises/twitter/twitter"
 )
 
 func main() {
@@ -32,11 +29,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	client, err := twitterClient(key, secret)
+	client, err := twitter.New(key, secret)
 	if err != nil {
 		panic(err)
 	}
-	newUsernames, err := retweeters(client, tweetID)
+	newUsernames, err := client.Retweeters(tweetID)
 	if err != nil {
 		panic(err)
 	}
@@ -71,56 +68,6 @@ func keys(keyFile string) (key, secret string, err error) {
 	dec := json.NewDecoder(f)
 	dec.Decode(&keys)
 	return keys.Key, keys.Secret, nil
-}
-
-func twitterClient(key, secret string) (*http.Client, error) {
-	req, err := http.NewRequest("POST", "https://api.twitter.com/oauth2/token", strings.NewReader("grant_type=client_credentials"))
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth(key, secret)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
-
-	var client http.Client
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	var token oauth2.Token
-	dec := json.NewDecoder(res.Body)
-	err = dec.Decode(&token)
-	if err != nil {
-		return nil, err
-	}
-	var conf oauth2.Config
-	return conf.Client(context.Background(), &token), nil
-}
-
-func retweeters(client *http.Client, tweetID string) ([]string, error) {
-	url := fmt.Sprintf("https://api.twitter.com/1.1/statuses/retweets/%s.json", tweetID)
-	res, err := client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	var retweets []struct {
-		User struct {
-			ScreenName string `json:"screen_name"`
-		} `json:"user"`
-	}
-	dec := json.NewDecoder(res.Body)
-	err = dec.Decode(&retweets)
-	if err != nil {
-		return nil, err
-	}
-	usernames := make([]string, 0, len(retweets))
-	for _, retweet := range retweets {
-		usernames = append(usernames, retweet.User.ScreenName)
-	}
-	return usernames, nil
 }
 
 func existing(usersFile string) []string {
